@@ -38,6 +38,8 @@ client.on(Events.Error, (error) => {
   console.error("Discord client error:", error);
 });
 
+console.log("Starting Simonbot...");
+
 async function handleSimonCommand(interaction: ChatInputCommandInteraction): Promise<void> {
   const tickerInput = interaction.options.getString("ticker", false);
   const moversInput = interaction.options.getString("movers", false);

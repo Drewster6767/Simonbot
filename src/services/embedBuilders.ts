@@ -136,11 +136,10 @@ export function buildMarketMoversEmbeds(kind: MarketMoverKind, movers: MarketMov
 
   const moverEmbeds = movers.map((mover, index) => {
     const currency = mover.currency ?? "USD";
-    const move = `${formatSignedCurrency(mover.change, currency)} (${formatPercent(mover.changePercent)})`;
+    const move = `${formatPercent(mover.changePercent)} (${formatSignedCurrency(mover.change, currency)})`;
     const embed = new EmbedBuilder()
       .setColor(color)
-      .setTitle(`#${index + 1} ${mover.symbol}`)
-      .setDescription(`${truncate(mover.name, 80)}\n${formatCurrency(mover.price, currency)} ${move}`)
+      .setTitle(`#${index + 1} ${mover.symbol} - ${truncate(mover.name, 80)}`)
       .addFields(
         {
           name: "Price",
@@ -156,6 +155,10 @@ export function buildMarketMoversEmbeds(kind: MarketMoverKind, movers: MarketMov
 
     if (mover.logo && isHttpUrl(mover.logo)) {
       embed.setThumbnail(mover.logo);
+    }
+
+    if (mover.chartUrl) {
+      embed.setImage(mover.chartUrl);
     }
 
     return embed;
