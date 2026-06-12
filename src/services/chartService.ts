@@ -7,6 +7,12 @@ const MAX_COMPACT_CHART_POINTS = 48;
 const MAX_DIRECT_URL_LENGTH = 1900;
 type ChartVariant = "full" | "compact";
 
+// The tallest volume bar fills 1/headroom of the plot height; the price axis
+// reserves that same fraction (plus a gap) below the lowest price so the
+// line and bars can never overlap.
+const VOLUME_AXIS_HEADROOM: Record<ChartVariant, number> = { full: 4.5, compact: 6 };
+const VOLUME_ZONE_GAP = 0.05;
+
 interface PriceActionSeries {
   labels: string[];
   prices: number[];
@@ -41,7 +47,7 @@ export async function buildDailyPriceChartUrl(
   const latestChangePercent = (latestChange / openingPrice) * 100;
   const sessionColor =
     latestChangePercent > 0.05 ? "#25d366" : latestChangePercent < -0.05 ? "#ff4d4d" : "#a7b0bc";
-  const priceBounds = getPriceAxisBounds(series.prices, openingPrice);
+  const priceBounds = getPriceAxisBounds(series.prices, openingPrice, variant);
   const volumeMax = Math.max(...series.volumes, 1);
 
   const config = {
@@ -211,7 +217,7 @@ export async function buildDailyPriceChartUrl(
           position: "left",
           display: false,
           min: 0,
-          max: volumeMax * (isCompact ? 6 : 4.5),
+          max: volumeMax * VOLUME_AXIS_HEADROOM[variant],
           grid: {
             display: false
           }
@@ -331,15 +337,22 @@ function samplePoints(points: DailyPricePoint[], maxPoints: number): DailyPriceP
   return sampled;
 }
 
-function getPriceAxisBounds(values: number[], openingPrice: number): { min: number; max: number } {
+function getPriceAxisBounds(
+  values: number[],
+  openingPrice: number,
+  variant: ChartVariant
+): { min: number; max: number } {
+  const isCompact = variant === "compact";
   const minValue = Math.min(...values, openingPrice);
   const maxValue = Math.max(...values, openingPrice);
-  const range = Math.max(maxValue - minValue, openingPrice * 0.006);
-  const padding = range * 0.18;
+  const range = Math.max(maxValue - minValue, openingPrice * (isCompact ? 0.002 : 0.006));
+  const topFraction = isCompact ? 0.06 : 0.18;
+  const bottomFraction = 1 / VOLUME_AXIS_HEADROOM[variant] + VOLUME_ZONE_GAP;
+  const span = range / (1 - topFraction - bottomFraction);
 
   return {
-    min: Number((minValue - padding).toFixed(2)),
-    max: Number((maxValue + padding).toFixed(2))
+    min: Number((minValue - span * bottomFraction).toFixed(2)),
+    max: Number((maxValue + span * topFraction).toFixed(2))
   };
 }
 
