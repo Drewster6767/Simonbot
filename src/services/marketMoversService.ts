@@ -1,6 +1,7 @@
 import { ApiFailureError, SimonbotError } from "../errors.js";
 import type { MarketMover, MarketMoverKind, TickerOverview } from "../types.js";
-import { getQuote, getTickerOverview } from "./marketDataService.js";
+import { buildDailyPriceChartUrl } from "./chartService.js";
+import { getDailyPricePoints, getQuote, getTickerOverview } from "./marketDataService.js";
 import { resolveTicker } from "./tickerResolver.js";
 
 const MOVERS_TTL_MS = 60 * 1000;
@@ -99,6 +100,13 @@ export async function getMarketMovers(kind: MarketMoverKind): Promise<MarketMove
   const movers = await Promise.all(
     rankedQuotes.map(async (quote) => {
       const overview = await getOverviewFallback(quote.symbol);
+      const pricePoints = await getDailyPricePoints(quote.symbol).catch(() => []);
+      const chartUrl = await buildDailyPriceChartUrl(
+        quote.symbol,
+        pricePoints,
+        overview.currency ?? "USD",
+        "compact"
+      );
 
       return {
         symbol: quote.symbol,
@@ -107,7 +115,8 @@ export async function getMarketMovers(kind: MarketMoverKind): Promise<MarketMove
         change: quote.change,
         changePercent: quote.changePercent,
         currency: overview.currency,
-        logo: overview.logo
+        logo: overview.logo,
+        chartUrl: chartUrl ?? undefined
       };
     })
   );

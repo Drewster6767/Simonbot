@@ -40,4 +40,5 @@ export interface MarketMover {
   changePercent: number;
   currency?: string;
   logo?: string;
+  chartUrl?: string;
 }

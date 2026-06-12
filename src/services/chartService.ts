@@ -3,7 +3,9 @@ import type { DailyPricePoint } from "../types.js";
 const CHART_BASE_URL = "https://quickchart.io/chart";
 const CHART_CREATE_URL = "https://quickchart.io/chart/create";
 const MAX_CHART_POINTS = 110;
+const MAX_COMPACT_CHART_POINTS = 48;
 const MAX_DIRECT_URL_LENGTH = 1900;
+type ChartVariant = "full" | "compact";
 
 interface PriceActionSeries {
   labels: string[];
@@ -17,13 +19,16 @@ interface PriceActionSeries {
 export async function buildDailyPriceChartUrl(
   ticker: string,
   points: DailyPricePoint[],
-  currency: string
+  currency: string,
+  variant: ChartVariant = "full"
 ): Promise<string | null> {
   if (points.length < 2) {
     return null;
   }
 
-  const sampledPoints = samplePoints(points, MAX_CHART_POINTS);
+  const isCompact = variant === "compact";
+  const dimensions = isCompact ? { width: 640, height: 270 } : { width: 1200, height: 675 };
+  const sampledPoints = samplePoints(points, isCompact ? MAX_COMPACT_CHART_POINTS : MAX_CHART_POINTS);
   const openingPrice = sampledPoints[0].price;
 
   if (openingPrice <= 0) {
@@ -141,19 +146,21 @@ export async function buildDailyPriceChartUrl(
           align: "start",
           color: "#f5f7fb",
           font: {
-            size: 28,
+            size: isCompact ? 16 : 28,
             weight: "bold"
           },
           padding: {
-            bottom: 4
+            bottom: isCompact ? 2 : 4
           },
-          text: `${ticker}  ${formatCurrency(latestPrice, currency)}  ${formatSignedCurrency(
-            latestChange,
-            currency
-          )} (${formatPercent(latestChangePercent)})`
+          text: isCompact
+            ? `${ticker} ${formatPercent(latestChangePercent)}`
+            : `${ticker}  ${formatCurrency(latestPrice, currency)}  ${formatSignedCurrency(
+                latestChange,
+                currency
+              )} (${formatPercent(latestChangePercent)})`
         },
         subtitle: {
-          display: true,
+          display: !isCompact,
           align: "start",
           color: "#a7b0bc",
           font: {
@@ -179,7 +186,7 @@ export async function buildDailyPriceChartUrl(
           },
           ticks: {
             color: "#f5f7fb",
-            maxTicksLimit: 8,
+            maxTicksLimit: isCompact ? 4 : 8,
             maxRotation: 0,
             autoSkip: true,
             padding: 10
@@ -196,7 +203,7 @@ export async function buildDailyPriceChartUrl(
           },
           ticks: {
             color: "#f5f7fb",
-            maxTicksLimit: 7,
+            maxTicksLimit: isCompact ? 4 : 7,
             padding: 10
           }
         },
@@ -204,7 +211,7 @@ export async function buildDailyPriceChartUrl(
           position: "left",
           display: false,
           min: 0,
-          max: volumeMax * 4.5,
+          max: volumeMax * (isCompact ? 6 : 4.5),
           grid: {
             display: false
           }
@@ -214,8 +221,8 @@ export async function buildDailyPriceChartUrl(
   };
 
   const url = new URL(CHART_BASE_URL);
-  url.searchParams.set("width", "1200");
-  url.searchParams.set("height", "675");
+  url.searchParams.set("width", String(dimensions.width));
+  url.searchParams.set("height", String(dimensions.height));
   url.searchParams.set("backgroundColor", "#06111a");
   url.searchParams.set("version", "4");
   url.searchParams.set("c", JSON.stringify(config));
@@ -234,8 +241,8 @@ export async function buildDailyPriceChartUrl(
       },
       body: JSON.stringify({
         chart: config,
-        width: 1200,
-        height: 675,
+        width: dimensions.width,
+        height: dimensions.height,
         backgroundColor: "#06111a",
         format: "png",
         version: "4"
