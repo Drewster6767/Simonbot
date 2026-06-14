@@ -41,6 +41,7 @@ client.on(Events.Error, (error) => {
 console.log("Starting Simonbot...");
 
 async function handleSimonCommand(interaction: ChatInputCommandInteraction): Promise<void> {
+  const commandTime = new Date();
   const tickerInput = interaction.options.getString("ticker", false);
   const moversInput = interaction.options.getString("movers", false);
 
@@ -48,7 +49,7 @@ async function handleSimonCommand(interaction: ChatInputCommandInteraction): Pro
   const moversKind = parseMoversKind(moversInput ?? tickerShortcut);
 
   if (moversKind) {
-    await handleMoversCommand(interaction, moversKind);
+    await handleMoversCommand(interaction, moversKind, commandTime);
     return;
   }
 
@@ -81,7 +82,7 @@ async function handleSimonCommand(interaction: ChatInputCommandInteraction): Pro
         currency: "USD"
       })),
       getRecentNews(ticker),
-      getDailyPricePoints(ticker).catch(() => [])
+      getDailyPricePoints(ticker, commandTime).catch(() => [])
     ]);
 
     const chartUrl = await buildDailyPriceChartUrl(
@@ -91,8 +92,8 @@ async function handleSimonCommand(interaction: ChatInputCommandInteraction): Pro
     );
     const newsEmbeds = buildNewsEmbeds(articles);
     const embeds = [
-      buildStockSummaryEmbed(quote, overview, chartUrl),
-      ...(newsEmbeds.length > 0 ? newsEmbeds : [buildNoNewsEmbed(ticker)])
+      buildStockSummaryEmbed(quote, overview, chartUrl, commandTime),
+      ...(newsEmbeds.length > 0 ? newsEmbeds : [buildNoNewsEmbed(ticker, commandTime)])
     ];
 
     await interaction.editReply({
@@ -107,15 +108,16 @@ async function handleSimonCommand(interaction: ChatInputCommandInteraction): Pro
 
 async function handleMoversCommand(
   interaction: ChatInputCommandInteraction,
-  kind: MarketMoverKind
+  kind: MarketMoverKind,
+  commandTime: Date
 ): Promise<void> {
   await interaction.deferReply();
 
   try {
-    const movers = await getMarketMovers(kind);
+    const movers = await getMarketMovers(kind, commandTime);
 
     await interaction.editReply({
-      embeds: buildMarketMoversEmbeds(kind, movers)
+      embeds: buildMarketMoversEmbeds(kind, movers, commandTime)
     });
   } catch (error) {
     await interaction.editReply({

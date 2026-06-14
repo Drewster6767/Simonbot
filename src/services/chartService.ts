@@ -1,4 +1,5 @@
 import type { DailyPricePoint } from "../types.js";
+import { formatMarketTime } from "./tradingWeek.js";
 
 const CHART_BASE_URL = "https://quickchart.io/chart";
 const CHART_CREATE_URL = "https://quickchart.io/chart/create";
@@ -388,10 +389,7 @@ function formatCompactNumber(value: number): string {
 }
 
 function formatChartTime(date: Date): string {
-  return new Intl.DateTimeFormat("en-US", {
-    hour: "numeric",
-    minute: "2-digit"
-  }).format(date);
+  return formatMarketTime(date);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

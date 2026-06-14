@@ -1,6 +1,7 @@
 import { EmbedBuilder } from "discord.js";
 import { toUserMessage } from "../errors.js";
 import type { MarketMover, MarketMoverKind, NewsArticle, StockQuote, TickerOverview } from "../types.js";
+import { formatMarketDateTime } from "./tradingWeek.js";
 
 const FOOTER_TEXT = "Simonbot \u2022 Market data may be delayed \u2022 Not financial advice";
 const GREEN = 0x2ecc71;
@@ -37,7 +38,8 @@ export function buildHelpEmbed(): EmbedBuilder {
 export function buildStockSummaryEmbed(
   quote: StockQuote,
   overview: TickerOverview,
-  chartUrl?: string | null
+  chartUrl?: string | null,
+  commandTime = new Date()
 ): EmbedBuilder {
   const move = getMoveStyle(quote.changePercent);
   const currency = overview.currency ?? "USD";
@@ -67,8 +69,7 @@ export function buildStockSummaryEmbed(
         inline: true
       }
     )
-    .setFooter({ text: FOOTER_TEXT })
-    .setTimestamp();
+    .setFooter({ text: buildFooterText(commandTime) });
 
   if (overview.logo && isHttpUrl(overview.logo)) {
     embed.setThumbnail(overview.logo);
@@ -112,14 +113,19 @@ export function buildNewsEmbeds(articles: NewsArticle[]): EmbedBuilder[] {
   });
 }
 
-export function buildNoNewsEmbed(ticker: string): EmbedBuilder {
+export function buildNoNewsEmbed(ticker: string, commandTime = new Date()): EmbedBuilder {
   return new EmbedBuilder()
     .setColor(GRAY)
     .setTitle(`No current-week news found for ${ticker}`)
-    .setDescription("The quote is available, but no recent articles were returned for this trading week.");
+    .setDescription("The quote is available, but no recent articles were returned for this trading week.")
+    .setFooter({ text: buildFooterText(commandTime) });
 }
 
-export function buildMarketMoversEmbeds(kind: MarketMoverKind, movers: MarketMover[]): EmbedBuilder[] {
+export function buildMarketMoversEmbeds(
+  kind: MarketMoverKind,
+  movers: MarketMover[],
+  commandTime = new Date()
+): EmbedBuilder[] {
   const isHot = kind === "hot";
   const color = isHot ? GREEN : RED;
   const title = isHot ? "Hot Stocks" : "Not Stocks";
@@ -131,8 +137,7 @@ export function buildMarketMoversEmbeds(kind: MarketMoverKind, movers: MarketMov
     .setColor(color)
     .setTitle(title)
     .setDescription(description)
-    .setFooter({ text: FOOTER_TEXT })
-    .setTimestamp();
+    .setFooter({ text: buildFooterText(commandTime) });
 
   const moverEmbeds = movers.map((mover, index) => {
     const currency = mover.currency ?? "USD";
@@ -211,13 +216,11 @@ function formatPercent(value: number): string {
 }
 
 function formatPublishedDate(date: Date): string {
-  return new Intl.DateTimeFormat("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    hour: "numeric",
-    minute: "2-digit"
-  }).format(date);
+  return formatMarketDateTime(date);
+}
+
+function buildFooterText(date: Date): string {
+  return `${FOOTER_TEXT} • ${formatMarketDateTime(date)}`;
 }
 
 function truncate(value: string, maxLength: number): string {

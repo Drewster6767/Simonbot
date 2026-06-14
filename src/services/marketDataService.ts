@@ -66,10 +66,10 @@ export async function getTickerOverview(input: string): Promise<TickerOverview> 
   });
 }
 
-export async function getDailyPricePoints(input: string): Promise<DailyPricePoint[]> {
+export async function getDailyPricePoints(input: string, referenceDate = new Date()): Promise<DailyPricePoint[]> {
   const ticker = resolveTicker(input);
-  const session = getCurrentMarketSessionRange();
-  const cacheKey = `${ticker}:${toUnixSeconds(session.start)}`;
+  const session = getCurrentMarketSessionRange(referenceDate);
+  const cacheKey = `${ticker}:${toUnixSeconds(session.start)}:${toUnixSeconds(session.end)}`;
 
   return readThroughCache(candleCache, cacheKey, CANDLE_TTL_MS, async () => {
     if (session.end <= session.start) {

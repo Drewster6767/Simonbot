@@ -3,6 +3,7 @@ import type { MarketMover, MarketMoverKind, TickerOverview } from "../types.js";
 import { buildDailyPriceChartUrl } from "./chartService.js";
 import { getDailyPricePoints, getQuote, getTickerOverview } from "./marketDataService.js";
 import { resolveTicker } from "./tickerResolver.js";
+import { getCurrentMarketSessionRange, toUnixSeconds } from "./tradingWeek.js";
 
 const MOVERS_TTL_MS = 60 * 1000;
 const QUOTE_CONCURRENCY = 6;
@@ -64,10 +65,15 @@ interface CacheEntry<T> {
   expiresAt: number;
 }
 
-const moversCache = new Map<MarketMoverKind, CacheEntry<MarketMover[]>>();
+const moversCache = new Map<string, CacheEntry<MarketMover[]>>();
 
-export async function getMarketMovers(kind: MarketMoverKind): Promise<MarketMover[]> {
-  const cached = moversCache.get(kind);
+export async function getMarketMovers(
+  kind: MarketMoverKind,
+  referenceDate = new Date()
+): Promise<MarketMover[]> {
+  const session = getCurrentMarketSessionRange(referenceDate);
+  const cacheKey = `${kind}:${toUnixSeconds(session.start)}:${toUnixSeconds(session.end)}`;
+  const cached = moversCache.get(cacheKey);
 
   if (cached && cached.expiresAt > Date.now()) {
     return cached.value;
@@ -100,7 +106,7 @@ export async function getMarketMovers(kind: MarketMoverKind): Promise<MarketMove
   const movers = await Promise.all(
     rankedQuotes.map(async (quote) => {
       const overview = await getOverviewFallback(quote.symbol);
-      const pricePoints = await getDailyPricePoints(quote.symbol).catch(() => []);
+      const pricePoints = await getDailyPricePoints(quote.symbol, referenceDate).catch(() => []);
       const chartUrl = await buildDailyPriceChartUrl(
         quote.symbol,
         pricePoints,
@@ -121,7 +127,7 @@ export async function getMarketMovers(kind: MarketMoverKind): Promise<MarketMove
     })
   );
 
-  moversCache.set(kind, {
+  moversCache.set(cacheKey, {
     value: movers,
     expiresAt: Date.now() + MOVERS_TTL_MS
   });
