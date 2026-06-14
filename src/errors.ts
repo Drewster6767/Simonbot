@@ -1,5 +1,6 @@
 export type SimonbotErrorCode =
   | "INVALID_TICKER"
+  | "INVALID_CRYPTO"
   | "API_FAILURE"
   | "RATE_LIMITED"
   | "EMPTY_NEWS";
@@ -23,6 +24,17 @@ export class InvalidTickerError extends SimonbotError {
       "I could not recognize that ticker. Check the symbol and try again."
     );
     this.name = "InvalidTickerError";
+  }
+}
+
+export class InvalidCryptoSymbolError extends SimonbotError {
+  constructor(symbol?: string) {
+    super(
+      symbol ? `Unsupported crypto symbol: ${symbol}` : "Unsupported crypto symbol",
+      "INVALID_CRYPTO",
+      "I do not support that crypto symbol yet. Try `BTC`, `ETH`, `SOL`, or `DOGE`."
+    );
+    this.name = "InvalidCryptoSymbolError";
   }
 }
 

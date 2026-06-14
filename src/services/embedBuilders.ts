@@ -1,9 +1,17 @@
 import { EmbedBuilder } from "discord.js";
 import { toUserMessage } from "../errors.js";
-import type { MarketMover, MarketMoverKind, NewsArticle, StockQuote, TickerOverview } from "../types.js";
+import type {
+  CryptoQuote,
+  MarketMover,
+  MarketMoverKind,
+  NewsArticle,
+  StockQuote,
+  TickerOverview
+} from "../types.js";
 import { formatMarketDateTime } from "./tradingWeek.js";
 
 const FOOTER_TEXT = "Simonbot \u2022 Market data may be delayed \u2022 Not financial advice";
+const CRYPTO_FOOTER_TEXT = "Simonbot \u2022 Crypto prices use rolling 24H change \u2022 Not financial advice";
 const GREEN = 0x2ecc71;
 const RED = 0xe74c3c;
 const GRAY = 0x95a5a6;
@@ -22,6 +30,10 @@ export function buildHelpEmbed(): EmbedBuilder {
       {
         name: "/simon ticker:SYMBOL",
         value: "Show a stock summary and up to 4 recent articles."
+      },
+      {
+        name: "/simon crypto:BTC",
+        value: "Look up a cryptocurrency price and rolling 24-hour change."
       },
       {
         name: "/simon movers:hot",
@@ -82,6 +94,45 @@ export function buildStockSummaryEmbed(
   return embed;
 }
 
+export function buildCryptoEmbed(
+  quote: CryptoQuote,
+  chartUrl?: string | null,
+  commandTime = new Date()
+): EmbedBuilder {
+  const move = getMoveStyle(quote.changePercent24h);
+  const embed = new EmbedBuilder()
+    .setColor(move.color)
+    .setTitle(`${move.icon} ${quote.displayName} (${quote.symbol})`)
+    .addFields(
+      {
+        name: "Price",
+        value: formatCryptoCurrency(quote.priceUsd),
+        inline: true
+      },
+      {
+        name: "24H change",
+        value: formatSignedCryptoCurrency(quote.changeUsd24h),
+        inline: true
+      },
+      {
+        name: "24H percent",
+        value: `${move.icon} ${formatPercent(quote.changePercent24h)}`,
+        inline: true
+      }
+    )
+    .setFooter({ text: buildCryptoFooterText(commandTime) });
+
+  if (quote.imageUrl && isHttpUrl(quote.imageUrl)) {
+    embed.setThumbnail(quote.imageUrl);
+  }
+
+  if (chartUrl) {
+    embed.setImage(chartUrl);
+  }
+
+  return embed;
+}
+
 export function buildNewsEmbeds(articles: NewsArticle[]): EmbedBuilder[] {
   return articles.map((article) => {
     const embed = new EmbedBuilder()
@@ -119,6 +170,14 @@ export function buildNoNewsEmbed(ticker: string, commandTime = new Date()): Embe
     .setTitle(`No current-week news found for ${ticker}`)
     .setDescription("The quote is available, but no recent articles were returned for this trading week.")
     .setFooter({ text: buildFooterText(commandTime) });
+}
+
+export function buildNoCryptoNewsEmbed(symbol: string, commandTime = new Date()): EmbedBuilder {
+  return new EmbedBuilder()
+    .setColor(GRAY)
+    .setTitle(`No recent crypto news found for ${symbol}`)
+    .setDescription("The crypto quote is available, but no recent related articles were returned.")
+    .setFooter({ text: buildCryptoFooterText(commandTime) });
 }
 
 export function buildMarketMoversEmbeds(
@@ -203,10 +262,25 @@ function formatCurrency(value: number, currency: string): string {
   }
 }
 
+function formatCryptoCurrency(value: number): string {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: value < 1 ? 8 : value < 10 ? 4 : 2
+  }).format(value);
+}
+
 function formatSignedCurrency(value: number, currency: string): string {
   const sign = value > 0 ? "+" : "";
 
   return `${sign}${formatCurrency(value, currency)}`;
+}
+
+function formatSignedCryptoCurrency(value: number): string {
+  const sign = value > 0 ? "+" : "";
+
+  return `${sign}${formatCryptoCurrency(value)}`;
 }
 
 function formatPercent(value: number): string {
@@ -220,7 +294,11 @@ function formatPublishedDate(date: Date): string {
 }
 
 function buildFooterText(date: Date): string {
-  return `${FOOTER_TEXT} • ${formatMarketDateTime(date)}`;
+  return `${FOOTER_TEXT} \u2022 ${formatMarketDateTime(date)}`;
+}
+
+function buildCryptoFooterText(date: Date): string {
+  return `${CRYPTO_FOOTER_TEXT} \u2022 ${formatMarketDateTime(date)}`;
 }
 
 function truncate(value: string, maxLength: number): string {

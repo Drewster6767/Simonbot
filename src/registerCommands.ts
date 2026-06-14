@@ -16,6 +16,12 @@ const commands = [
     )
     .addStringOption((option) =>
       option
+        .setName("crypto")
+        .setDescription("Crypto symbol, example: BTC, ETH, SOL.")
+        .setRequired(false)
+    )
+    .addStringOption((option) =>
+      option
         .setName("movers")
         .setDescription("Show daily gainers or losers.")
         .setRequired(false)

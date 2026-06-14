@@ -11,7 +11,7 @@ Simonbot is a TypeScript Discord slash command bot for stock quote lookups and c
 npm install
 ```
 
-3. Copy `.env.example` to `.env` and fill in your Discord bot credentials plus a Finnhub API token as `MARKET_DATA_API_KEY`.
+3. Copy `.env.example` to `.env` and fill in your Discord bot credentials plus a Finnhub API token as `MARKET_DATA_API_KEY`. `COINGECKO_API_KEY` is optional for crypto lookups.
 4. Register the guild slash command:
 
 ```bash
@@ -28,6 +28,7 @@ npm run dev
 
 - `/simon` shows help.
 - `/simon ticker:SYMBOL` shows a stock summary, daily price-action chart vs open, and up to 4 recent news articles from the current trading week.
+- `/simon crypto:BTC` shows a cryptocurrency price and rolling 24-hour change.
 - `/simon movers:hot` shows the top 5 daily gainers from Simonbot's mover scan.
 - `/simon movers:not` shows the top 5 daily losers from Simonbot's mover scan.
 

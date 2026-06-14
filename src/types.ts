@@ -42,3 +42,14 @@ export interface MarketMover {
   logo?: string;
   chartUrl?: string;
 }
+
+export interface CryptoQuote {
+  symbol: string;
+  coinGeckoId: string;
+  displayName: string;
+  priceUsd: number;
+  changePercent24h: number;
+  changeUsd24h: number;
+  lastUpdatedAt?: Date;
+  imageUrl?: string;
+}

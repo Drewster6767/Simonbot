@@ -35,6 +35,28 @@ export async function getRecentNews(input: string): Promise<NewsArticle[]> {
   });
 }
 
+export async function getRecentCryptoNews(
+  symbol: string,
+  displayName: string,
+  coinGeckoId: string
+): Promise<NewsArticle[]> {
+  const normalizedSymbol = symbol.trim().toUpperCase();
+  const cacheKey = `crypto:${normalizedSymbol}:${coinGeckoId}`;
+
+  return readThroughCache(newsCache, cacheKey, NEWS_TTL_MS, async () => {
+    const earliest = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    const data = await fetchFinnhubMarketNews("crypto");
+
+    return data
+      .filter((item) => matchesCryptoNews(item, normalizedSymbol, displayName, coinGeckoId))
+      .map(toNewsArticle)
+      .filter((article): article is NewsArticle => article !== null)
+      .filter((article) => article.publishedAt >= earliest)
+      .sort((a, b) => b.publishedAt.getTime() - a.publishedAt.getTime())
+      .slice(0, 4);
+  });
+}
+
 async function readThroughCache<T>(
   cache: Map<string, CacheEntry<T>>,
   key: string,
@@ -57,7 +79,15 @@ async function readThroughCache<T>(
 }
 
 async function fetchFinnhubNews(params: Record<string, string>): Promise<unknown[]> {
-  const url = new URL(`${API_BASE_URL}/company-news`);
+  return fetchFinnhubArray("/company-news", params);
+}
+
+async function fetchFinnhubMarketNews(category: string): Promise<unknown[]> {
+  return fetchFinnhubArray("/news", { category });
+}
+
+async function fetchFinnhubArray(path: string, params: Record<string, string>): Promise<unknown[]> {
+  const url = new URL(`${API_BASE_URL}${path}`);
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
@@ -107,6 +137,43 @@ async function fetchFinnhubNews(params: Record<string, string>): Promise<unknown
   } finally {
     clearTimeout(timeout);
   }
+}
+
+function matchesCryptoNews(
+  value: unknown,
+  symbol: string,
+  displayName: string,
+  coinGeckoId: string
+): boolean {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  const haystack = [value.headline, value.summary, value.related]
+    .map((entry) => (typeof entry === "string" ? entry : ""))
+    .join(" ")
+    .toLowerCase();
+  const terms = [
+    symbol,
+    displayName,
+    coinGeckoId.replace(/-/g, " ")
+  ]
+    .map((term) => term.trim().toLowerCase())
+    .filter((term, index, allTerms) => term && allTerms.indexOf(term) === index);
+
+  return terms.some((term) => containsSearchTerm(haystack, term));
+}
+
+function containsSearchTerm(haystack: string, term: string): boolean {
+  if (term.length <= 5 && /^[a-z0-9]+$/.test(term)) {
+    return new RegExp(`(^|[^a-z0-9])${escapeRegExp(term)}([^a-z0-9]|$)`).test(haystack);
+  }
+
+  return haystack.includes(term);
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function detectProviderError(data: Record<string, unknown>): void {

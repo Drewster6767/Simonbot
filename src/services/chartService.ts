@@ -350,10 +350,11 @@ function getPriceAxisBounds(
   const topFraction = isCompact ? 0.06 : 0.18;
   const bottomFraction = 1 / VOLUME_AXIS_HEADROOM[variant] + VOLUME_ZONE_GAP;
   const span = range / (1 - topFraction - bottomFraction);
+  const fractionDigits = getAxisFractionDigits(openingPrice);
 
   return {
-    min: Number((minValue - span * bottomFraction).toFixed(2)),
-    max: Number((maxValue + span * topFraction).toFixed(2))
+    min: Number((minValue - span * bottomFraction).toFixed(fractionDigits)),
+    max: Number((maxValue + span * topFraction).toFixed(fractionDigits))
   };
 }
 
@@ -362,11 +363,44 @@ function formatCurrency(value: number, currency: string): string {
     return new Intl.NumberFormat("en-US", {
       style: "currency",
       currency,
-      maximumFractionDigits: value >= 100 ? 2 : 4
+      minimumFractionDigits: 2,
+      maximumFractionDigits: getCurrencyFractionDigits(value)
     }).format(value);
   } catch {
     return `${value.toFixed(2)} ${currency}`;
   }
+}
+
+function getAxisFractionDigits(value: number): number {
+  const absoluteValue = Math.abs(value);
+
+  if (absoluteValue < 0.01) {
+    return 8;
+  }
+
+  if (absoluteValue < 1) {
+    return 6;
+  }
+
+  if (absoluteValue < 10) {
+    return 4;
+  }
+
+  return 2;
+}
+
+function getCurrencyFractionDigits(value: number): number {
+  const absoluteValue = Math.abs(value);
+
+  if (absoluteValue < 1) {
+    return 8;
+  }
+
+  if (absoluteValue < 10) {
+    return 4;
+  }
+
+  return 2;
 }
 
 function formatSignedCurrency(value: number, currency: string): string {

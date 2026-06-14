@@ -27,3 +27,9 @@ export function getDiscordRegistrationConfig() {
 export function getMarketDataApiKey(): string {
   return getRequiredEnv("MARKET_DATA_API_KEY");
 }
+
+export function getCoinGeckoApiKey(): string | undefined {
+  const value = process.env.COINGECKO_API_KEY?.trim();
+
+  return value || undefined;
+}

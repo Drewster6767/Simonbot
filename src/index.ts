@@ -3,14 +3,17 @@ import { ChatInputCommandInteraction, Client, Events, GatewayIntentBits } from "
 import { getDiscordRuntimeConfig } from "./config.js";
 import { getDailyPricePoints, getQuote, getTickerOverview } from "./services/marketDataService.js";
 import { getMarketMovers } from "./services/marketMoversService.js";
-import { getRecentNews } from "./services/newsService.js";
+import { getRecentCryptoNews, getRecentNews } from "./services/newsService.js";
 import { resolveTicker } from "./services/tickerResolver.js";
 import { buildDailyPriceChartUrl } from "./services/chartService.js";
+import { getCryptoPricePoints, getCryptoQuote } from "./services/cryptoService.js";
 import {
+  buildCryptoEmbed,
   buildErrorEmbed,
   buildHelpEmbed,
   buildMarketMoversEmbeds,
   buildNewsEmbeds,
+  buildNoCryptoNewsEmbed,
   buildNoNewsEmbed,
   buildStockSummaryEmbed
 } from "./services/embedBuilders.js";
@@ -43,10 +46,21 @@ console.log("Starting Simonbot...");
 async function handleSimonCommand(interaction: ChatInputCommandInteraction): Promise<void> {
   const commandTime = new Date();
   const tickerInput = interaction.options.getString("ticker", false);
+  const cryptoInput = interaction.options.getString("crypto", false);
   const moversInput = interaction.options.getString("movers", false);
 
   const tickerShortcut = tickerInput?.trim().toLowerCase();
   const moversKind = parseMoversKind(moversInput ?? tickerShortcut);
+
+  if (moversInput && moversKind) {
+    await handleMoversCommand(interaction, moversKind, commandTime);
+    return;
+  }
+
+  if (cryptoInput) {
+    await handleCryptoCommand(interaction, cryptoInput, commandTime);
+    return;
+  }
 
   if (moversKind) {
     await handleMoversCommand(interaction, moversKind, commandTime);
@@ -94,6 +108,36 @@ async function handleSimonCommand(interaction: ChatInputCommandInteraction): Pro
     const embeds = [
       buildStockSummaryEmbed(quote, overview, chartUrl, commandTime),
       ...(newsEmbeds.length > 0 ? newsEmbeds : [buildNoNewsEmbed(ticker, commandTime)])
+    ];
+
+    await interaction.editReply({
+      embeds
+    });
+  } catch (error) {
+    await interaction.editReply({
+      embeds: [buildErrorEmbed(error)]
+    });
+  }
+}
+
+async function handleCryptoCommand(
+  interaction: ChatInputCommandInteraction,
+  cryptoInput: string,
+  commandTime: Date
+): Promise<void> {
+  await interaction.deferReply();
+
+  try {
+    const quote = await getCryptoQuote(cryptoInput);
+    const [pricePoints, articles] = await Promise.all([
+      getCryptoPricePoints(quote.coinGeckoId).catch(() => []),
+      getRecentCryptoNews(quote.symbol, quote.displayName, quote.coinGeckoId).catch(() => [])
+    ]);
+    const chartUrl = await buildDailyPriceChartUrl(`${quote.symbol} 24H`, pricePoints, "USD");
+    const newsEmbeds = buildNewsEmbeds(articles);
+    const embeds = [
+      buildCryptoEmbed(quote, chartUrl, commandTime),
+      ...(newsEmbeds.length > 0 ? newsEmbeds : [buildNoCryptoNewsEmbed(quote.symbol, commandTime)])
     ];
 
     await interaction.editReply({
