@@ -1,7 +1,7 @@
 import { ApiFailureError, InvalidTickerError, RateLimitError } from "../errors.js";
 import { getMarketDataApiKey } from "../config.js";
 import type { DailyPricePoint, StockQuote, TickerOverview } from "../types.js";
-import { getCurrentTradingDayRange, toUnixSeconds } from "./tradingWeek.js";
+import { getCurrentMarketSessionRange, toUnixSeconds } from "./tradingWeek.js";
 import { resolveTicker } from "./tickerResolver.js";
 
 const API_BASE_URL = "https://finnhub.io/api/v1";
@@ -68,19 +68,23 @@ export async function getTickerOverview(input: string): Promise<TickerOverview> 
 
 export async function getDailyPricePoints(input: string): Promise<DailyPricePoint[]> {
   const ticker = resolveTicker(input);
-  const day = getCurrentTradingDayRange();
-  const cacheKey = `${ticker}:${toUnixSeconds(day.start)}`;
+  const session = getCurrentMarketSessionRange();
+  const cacheKey = `${ticker}:${toUnixSeconds(session.start)}`;
 
   return readThroughCache(candleCache, cacheKey, CANDLE_TTL_MS, async () => {
+    if (session.end <= session.start) {
+      return [];
+    }
+
     try {
       const data = await fetchFinnhub("/stock/candle", {
         symbol: ticker,
         resolution: "5",
-        from: toUnixSeconds(day.start),
-        to: toUnixSeconds(day.end)
+        from: toUnixSeconds(session.start),
+        to: toUnixSeconds(session.end)
       });
 
-      const points = parseCandlePoints(data);
+      const points = filterSessionPoints(parseCandlePoints(data), session);
 
       if (points.length >= 2) {
         return points;
@@ -89,7 +93,7 @@ export async function getDailyPricePoints(input: string): Promise<DailyPricePoin
       // Finnhub candles can be unavailable on some plans. Quotes still validate the ticker.
     }
 
-    return fetchYahooDailyPricePoints(ticker);
+    return fetchYahooDailyPricePoints(ticker, session);
   });
 }
 
@@ -165,12 +169,16 @@ async function fetchFinnhub(path: string, params: Record<string, string>): Promi
   }
 }
 
-async function fetchYahooDailyPricePoints(ticker: string): Promise<DailyPricePoint[]> {
+async function fetchYahooDailyPricePoints(
+  ticker: string,
+  session: { start: Date; end: Date }
+): Promise<DailyPricePoint[]> {
   const url = new URL(`${YAHOO_CHART_BASE_URL}/${encodeURIComponent(ticker)}`);
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
-  url.searchParams.set("range", "1d");
+  url.searchParams.set("period1", toUnixSeconds(session.start));
+  url.searchParams.set("period2", toUnixSeconds(session.end));
   url.searchParams.set("interval", "5m");
   url.searchParams.set("includePrePost", "false");
 
@@ -188,7 +196,7 @@ async function fetchYahooDailyPricePoints(ticker: string): Promise<DailyPricePoi
 
     const data = (await response.json()) as unknown;
 
-    return parseYahooChartPoints(data);
+    return filterSessionPoints(parseYahooChartPoints(data), session);
   } catch {
     return [];
   } finally {
@@ -299,6 +307,13 @@ function parseYahooChartPoints(data: unknown): DailyPricePoint[] {
   }
 
   return points;
+}
+
+function filterSessionPoints(
+  points: DailyPricePoint[],
+  session: { start: Date; end: Date }
+): DailyPricePoint[] {
+  return points.filter((point) => point.timestamp >= session.start && point.timestamp <= session.end);
 }
 
 function stringOrUndefined(value: unknown): string | undefined {

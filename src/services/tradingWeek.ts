@@ -40,6 +40,30 @@ export function getCurrentTradingDayRange(referenceDate = new Date()): TradingWe
   return { start, end };
 }
 
+export function getCurrentMarketSessionRange(referenceDate = new Date()): TradingWeekRange {
+  const day = referenceDate.getDay();
+  const offset = day === 0 ? -2 : day === 6 ? -1 : 0;
+
+  const sessionDate = new Date(referenceDate);
+  sessionDate.setDate(sessionDate.getDate() + offset);
+
+  const start = new Date(sessionDate);
+  start.setHours(8, 30, 0, 0);
+
+  const close = new Date(sessionDate);
+  close.setHours(15, 0, 0, 0);
+
+  if (offset !== 0 || referenceDate > close) {
+    return { start, end: close };
+  }
+
+  if (referenceDate < start) {
+    return { start, end: start };
+  }
+
+  return { start, end: referenceDate };
+}
+
 export function formatFinnhubDate(date: Date): string {
   const year = date.getFullYear();
   const month = pad(date.getMonth() + 1);
